@@ -1,0 +1,22 @@
+{
+  "name": "ai-knowledge-workspace",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm -w apps/backend run dev",
+    "dev:frontend": "npm -w apps/frontend run dev",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "db:migrate": "npm -w apps/backend run db:migrate",
+    "db:generate": "npm -w apps/backend run db:generate",
+    "db:studio": "npm -w apps/backend run db:studio",
+    "db:seed": "npm -w apps/backend run db:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

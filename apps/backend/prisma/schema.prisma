@@ -1,0 +1,106 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatar    String?
+  pages     Page[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Page {
+  id          String    @id @default(cuid())
+  title       String    @default("Untitled")
+  icon        String?   @default("📄")
+  coverImage  String?
+  isPublished Boolean   @default(false)
+  parentId    String?
+  order       Int       @default(0)
+
+  parent   Page?  @relation("SubPages", fields: [parentId], references: [id], onDelete: Cascade)
+  children Page[] @relation("SubPages")
+
+  blocks   Block[]
+  tags     PageTag[]
+  versions Version[]
+
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pages")
+}
+
+model Block {
+  id      String    @id @default(cuid())
+  type    BlockType
+  content Json      // flexible: { text, language, checked, level, url, etc }
+  order   Int
+  pageId  String
+  page    Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pageId, order])
+  @@map("blocks")
+}
+
+model Tag {
+  id    String    @id @default(cuid())
+  name  String    @unique
+  color String    @default("#6366f1")
+  pages PageTag[]
+
+  @@map("tags")
+}
+
+model PageTag {
+  pageId String
+  tagId  String
+  page   Page   @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, tagId])
+  @@map("page_tags")
+}
+
+model Version {
+  id        String   @id @default(cuid())
+  snapshot  Json     // full blocks snapshot at this point in time
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("versions")
+}
+
+enum BlockType {
+  TEXT
+  HEADING_1
+  HEADING_2
+  HEADING_3
+  CODE
+  CHECKLIST
+  IMAGE
+  DIVIDER
+  QUOTE
+  CALLOUT
+}

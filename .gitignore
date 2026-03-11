@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# Prisma
+apps/backend/prisma/migrations/*.sql.bak
+
+# Build
+apps/frontend/dist/
+apps/backend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
