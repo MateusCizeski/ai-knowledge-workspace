@@ -51,7 +51,7 @@ model Page {
 model Block {
   id      String    @id @default(cuid())
   type    BlockType
-  content Json      // flexible: { text, language, checked, level, url, etc }
+  content Json      
   order   Int
   pageId  String
   page    Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
@@ -84,7 +84,7 @@ model PageTag {
 
 model Version {
   id        String   @id @default(cuid())
-  snapshot  Json     // full blocks snapshot at this point in time
+  snapshot  Json     
   pageId    String
   page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
