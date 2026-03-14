@@ -12,10 +12,10 @@ export type AIAction =
   | "complete";
 export type AITone = "professional" | "casual" | "formal" | "friendly";
 
-export function useAI() {
-  const loading = ref(false);
-  const error = ref<string | null>(null);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
+export function useAI() {
   async function call<T>(endpoint: string, body: object): Promise<T | null> {
     loading.value = true;
     error.value = null;
@@ -30,53 +30,26 @@ export function useAI() {
     }
   }
 
-  async function summarize(content: string) {
-    return call<{ result: string }>("summarize", { content });
-  }
-
-  async function improve(content: string) {
-    return call<{ result: string }>("improve", { content });
-  }
-
-  async function fixGrammar(content: string) {
-    return call<{ result: string }>("fix-grammar", { content });
-  }
-
-  async function makeShorter(content: string) {
-    return call<{ result: string }>("make-shorter", { content });
-  }
-
-  async function makeLonger(content: string) {
-    return call<{ result: string }>("make-longer", { content });
-  }
-
-  async function changeTone(content: string, tone: AITone) {
-    return call<{ result: string }>("change-tone", { content, tone });
-  }
-
-  async function suggestTags(content: string) {
-    return call<{ tags: string[] }>("suggest-tags", { content });
-  }
-
-  async function generate(prompt: string, context?: string) {
-    return call<{ result: string }>("generate", { prompt, context });
-  }
-
-  async function complete(content: string) {
-    return call<{ result: string }>("complete", { content });
-  }
-
   return {
     loading,
     error,
-    summarize,
-    improve,
-    fixGrammar,
-    makeShorter,
-    makeLonger,
-    changeTone,
-    suggestTags,
-    generate,
-    complete,
+    summarize: (content: string) =>
+      call<{ result: string }>("summarize", { content }),
+    improve: (content: string) =>
+      call<{ result: string }>("improve", { content }),
+    fixGrammar: (content: string) =>
+      call<{ result: string }>("fix-grammar", { content }),
+    makeShorter: (content: string) =>
+      call<{ result: string }>("make-shorter", { content }),
+    makeLonger: (content: string) =>
+      call<{ result: string }>("make-longer", { content }),
+    changeTone: (content: string, tone: AITone) =>
+      call<{ result: string }>("change-tone", { content, tone }),
+    suggestTags: (content: string) =>
+      call<{ tags: string[] }>("suggest-tags", { content }),
+    generate: (prompt: string, context?: string) =>
+      call<{ result: string }>("generate", { prompt, context }),
+    complete: (content: string) =>
+      call<{ result: string }>("complete", { content }),
   };
 }
