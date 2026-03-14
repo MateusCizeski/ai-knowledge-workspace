@@ -21,9 +21,7 @@ const blocksService = {
       data: { order: { increment: 1 } },
     });
 
-    return prisma.block.create({
-      data: { ...data, pageId },
-    });
+    return prisma.block.create({ data: { ...data, pageId } });
   },
 
   async update(
@@ -51,14 +49,11 @@ const blocksService = {
 
   async delete(id: string, userId: string) {
     const block = await assertBlockOwner(id, userId);
-
     await prisma.block.delete({ where: { id } });
-
     await prisma.block.updateMany({
       where: { pageId: block.pageId, order: { gt: block.order } },
       data: { order: { decrement: 1 } },
     });
-
     return { success: true };
   },
 
@@ -72,14 +67,45 @@ const blocksService = {
     });
     if (!page) throw new AppError("Page not found", 404);
 
-    const ops = blocks.map((b) =>
-      prisma.block.update({
-        where: { id: b.id },
-        data: { content: b.content, order: b.order, type: b.type },
-      }),
-    );
+    const toCreate = blocks.filter((b) => b.id.startsWith("temp-"));
+    const toUpdate = blocks.filter((b) => !b.id.startsWith("temp-"));
 
-    const result = await prisma.$transaction(ops);
+    const existingIds =
+      toUpdate.length > 0
+        ? (
+            await prisma.block.findMany({
+              where: { id: { in: toUpdate.map((b) => b.id) }, pageId },
+              select: { id: true },
+            })
+          ).map((b) => b.id)
+        : [];
+
+    const validUpdates = toUpdate.filter((b) => existingIds.includes(b.id));
+    const orphans = toUpdate.filter((b) => !existingIds.includes(b.id));
+
+    const allToCreate = [...toCreate, ...orphans];
+
+    const ops: Promise<any>[] = [
+      prisma.block.deleteMany({
+        where: {
+          pageId,
+          id: { notIn: validUpdates.map((b) => b.id) },
+        },
+      }),
+      ...allToCreate.map((b) =>
+        prisma.block.create({
+          data: { type: b.type, content: b.content, order: b.order, pageId },
+        }),
+      ),
+      ...validUpdates.map((b) =>
+        prisma.block.update({
+          where: { id: b.id },
+          data: { content: b.content, order: b.order, type: b.type },
+        }),
+      ),
+    ];
+
+    const result = await Promise.all(ops);
 
     await prisma.version.create({
       data: { pageId, snapshot: blocks },
@@ -135,6 +161,23 @@ blocksRoutes.post(
 );
 
 blocksRoutes.patch(
+  "/:pageId/bulk",
+  async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const { blocks } = bulkUpdateSchema.parse(req.body);
+      const result = await blocksService.bulkUpdate(
+        req.params.pageId,
+        req.userId!,
+        blocks,
+      );
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+blocksRoutes.patch(
   "/:id",
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -156,23 +199,6 @@ blocksRoutes.delete(
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const result = await blocksService.delete(req.params.id, req.userId!);
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-blocksRoutes.patch(
-  "/:pageId/bulk",
-  async (req: AuthRequest, res: Response, next: NextFunction) => {
-    try {
-      const { blocks } = bulkUpdateSchema.parse(req.body);
-      const result = await blocksService.bulkUpdate(
-        req.params.pageId,
-        req.userId!,
-        blocks,
-      );
       res.json(result);
     } catch (err) {
       next(err);
