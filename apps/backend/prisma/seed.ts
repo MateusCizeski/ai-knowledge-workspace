@@ -88,8 +88,8 @@ async function main() {
     },
   });
 
-  console.log(`Demo page created: "${page.title}"`);
-  console.log("\n🎉 Seed complete! Login with:");
+  console.log(` Demo page created: "${page.title}"`);
+  console.log("\n Seed complete! Login with:");
   console.log("   Email: demo@workspace.dev");
   console.log("   Password: demo123");
 }

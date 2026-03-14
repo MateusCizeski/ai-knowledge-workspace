@@ -1,25 +1,29 @@
-import axios from 'axios'
+import axios from "axios";
+
+const baseURL =
+  import.meta.env.PROD && import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "/api";
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
+  baseURL,
+  headers: { "Content-Type": "application/json" },
+  withCredentials: false,
+});
 
-// Attach JWT token on every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
-})
+  const token = localStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Global response error handling
 api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/auth'
+      localStorage.removeItem("token");
+      window.location.href = "/auth";
     }
-    return Promise.reject(error)
-  }
-)
+    return Promise.reject(error);
+  },
+);
