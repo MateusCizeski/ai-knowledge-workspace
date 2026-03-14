@@ -8,10 +8,7 @@ export const aiRoutes = Router();
 aiRoutes.use(authenticate);
 
 function requireAIKey(_req: AuthRequest, _res: Response, next: NextFunction) {
-  if (
-    !process.env.GEMINI_API_KEY ||
-    process.env.GEMINI_API_KEY === "your_gemini_api_key_here"
-  ) {
+  if (!process.env.GEMINI_API_KEY) {
     return next(
       new AppError(
         "Gemini API key not configured. Add GEMINI_API_KEY to your .env file. Get a free key at https://aistudio.google.com",

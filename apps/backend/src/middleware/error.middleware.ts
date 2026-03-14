@@ -17,7 +17,10 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
+  console.error("─".repeat(60));
   console.error(`[ERROR] ${err.name}: ${err.message}`);
+  if (err.stack) console.error(err.stack);
+  console.error("─".repeat(60));
 
   if (err instanceof ZodError) {
     return res.status(422).json({
@@ -37,5 +40,9 @@ export function errorHandler(
     return res.status(409).json({ error: "Resource already exists" });
   }
 
-  return res.status(500).json({ error: "Internal server error" });
+  const isDev = process.env.NODE_ENV !== "production";
+  return res.status(500).json({
+    error: isDev ? err.message : "Internal server error",
+    ...(isDev && { stack: err.stack?.split("\n").slice(0, 5) }),
+  });
 }
