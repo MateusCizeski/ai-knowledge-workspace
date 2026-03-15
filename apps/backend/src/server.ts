@@ -1,13 +1,18 @@
 import "dotenv/config";
-import express from "express";
 import cors from "cors";
+import express from "express";
+import { createServer } from "http";
+import { aiRoutes } from "./modules/ai/ai.routes";
+import { initWebSocket } from "./websocket/ws.gateway";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { pagesRoutes } from "./modules/pages/pages.routes";
-import { blocksRoutes } from "./modules/blocks/blocks.routes";
-import { aiRoutes } from "./modules/ai/ai.routes";
 import { errorHandler } from "./middleware/error.middleware";
+import { searchRoutes } from "./modules/search/search.routes";
+import { blocksRoutes } from "./modules/blocks/blocks.routes";
+import { versionsRoutes } from "./modules/versions/versions.route";
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 3000;
 
 app.use(
@@ -29,13 +34,19 @@ app.use("/api/auth", authRoutes);
 app.use("/api/pages", pagesRoutes);
 app.use("/api/blocks", blocksRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/versions", versionsRoutes);
+
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+const io = initWebSocket(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🔌 WebSocket ready`);
   console.log(
-    `AI: ${process.env.GEMINI_API_KEY ? "Gemini configured" : "⚠️ Add GEMINI_API_KEY to .env"}`,
+    `   AI: ${process.env.GEMINI_API_KEY ? "✅ Gemini configured" : "⚠️  Add GEMINI_API_KEY to .env"}`,
   );
 });
 
-export default app;
+export { app, io };
