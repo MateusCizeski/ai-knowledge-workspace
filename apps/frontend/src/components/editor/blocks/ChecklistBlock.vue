@@ -9,7 +9,7 @@
     <div
       :class="[
         'flex-1 outline-none text-gray-800 leading-relaxed min-h-[1.5rem]',
-        block.content.checked ? 'line-through text-gray-400' : ''
+        block.content.checked ? 'line-through text-gray-400' : '',
       ]"
       :contenteditable="true"
       data-placeholder="To-do…"
@@ -23,34 +23,58 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
-import type { Block } from '@/stores/pages.store'
+import { ref, onMounted, watch, nextTick } from "vue";
+import type { Block } from "@/stores/pages.store";
 
-const props = defineProps<{ block: Block; isFocused: boolean }>()
-const emit = defineEmits(['update', 'focus', 'blur', 'enter', 'backspace-empty', 'slash', 'arrow-up', 'arrow-down'])
+const props = defineProps<{ block: Block; isFocused: boolean }>();
+const emit = defineEmits([
+  "update",
+  "focus",
+  "blur",
+  "enter",
+  "backspace-empty",
+  "slash",
+  "arrow-up",
+  "arrow-down",
+]);
 
-const el = ref<HTMLDivElement | null>(null)
+const el = ref<HTMLDivElement | null>(null);
 
 onMounted(() => {
-  if (el.value && props.block.content.text) el.value.textContent = props.block.content.text as string
-})
+  if (el.value && props.block.content.text)
+    el.value.textContent = props.block.content.text as string;
+});
 
-watch(() => props.isFocused, (f) => { if (f) nextTick(() => el.value?.focus()) })
+watch(
+  () => props.isFocused,
+  (f) => {
+    if (f) nextTick(() => el.value?.focus());
+  },
+);
 
 function onInput() {
-  emit('update', { ...props.block.content, text: el.value?.textContent || '' })
+  emit("update", { ...props.block.content, text: el.value?.textContent || "" });
 }
 
 function toggleCheck() {
-  emit('update', { ...props.block.content, checked: !props.block.content.checked })
+  emit("update", {
+    ...props.block.content,
+    checked: !props.block.content.checked,
+  });
 }
 
 function onKeydown(e: KeyboardEvent) {
-  const text = el.value?.textContent || ''
-  if (e.key === 'Enter') { e.preventDefault(); emit('enter', '') }
-  if (e.key === 'Backspace' && text === '') { e.preventDefault(); emit('backspace-empty') }
-  if (e.key === 'ArrowUp') emit('arrow-up')
-  if (e.key === 'ArrowDown') emit('arrow-down')
+  const text = el.value?.textContent || "";
+  if (e.key === "Enter") {
+    e.preventDefault();
+    emit("enter", "");
+  }
+  if (e.key === "Backspace" && text === "") {
+    e.preventDefault();
+    emit("backspace-empty");
+  }
+  if (e.key === "ArrowUp") emit("arrow-up");
+  if (e.key === "ArrowDown") emit("arrow-down");
 }
 </script>
 

@@ -20,8 +20,9 @@
         <span
           class="text-sm font-medium truncate flex-1"
           style="color: var(--text-primary)"
-          >{{ authStore.user?.name }}</span
         >
+          {{ authStore.user?.name }}
+        </span>
         <button
           @click="logout"
           title="Sign out"
@@ -46,7 +47,41 @@
         </button>
       </div>
 
-      <div class="px-2 py-2">
+      <div class="px-2 pt-2">
+        <button
+          @click="searchOpen = true"
+          class="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors"
+          style="
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            color: var(--text-tertiary);
+          "
+          onmouseover="this.style.borderColor = 'var(--accent)'"
+          onmouseout="this.style.borderColor = 'var(--border)'"
+        >
+          <svg
+            class="w-3.5 h-3.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"
+            />
+          </svg>
+          <span class="flex-1 text-left text-xs">Search…</span>
+          <kbd
+            class="text-xs px-1 rounded"
+            style="background: var(--bg); border: 1px solid var(--border)"
+            >⌘K</kbd
+          >
+        </button>
+      </div>
+
+      <div class="px-2 pt-1">
         <button
           @click="createNewPage"
           class="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
@@ -77,7 +112,7 @@
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-2 pb-4">
+      <div class="flex-1 overflow-y-auto px-2 pb-4 mt-1">
         <PageTree />
       </div>
 
@@ -95,8 +130,7 @@
             border: 1px solid var(--border);
           "
         >
-          <span>{{ theme === "dark" ? "☀️" : "🌙" }}</span>
-          {{ theme === "dark" ? "Light" : "Dark" }}
+          {{ theme === "dark" ? "☀️ Light" : "🌙 Dark" }}
         </button>
       </div>
     </aside>
@@ -138,7 +172,9 @@
           }}</span>
         </div>
 
-        <div class="ml-auto flex items-center gap-3">
+        <div class="ml-auto flex items-center gap-2">
+          <PresenceBar v-if="presenceUsers.length" :users="presenceUsers" />
+
           <div
             v-if="pagesStore.currentPage"
             class="flex items-center gap-1.5 text-xs"
@@ -158,22 +194,39 @@
 
           <button
             v-if="pagesStore.currentPage"
-            @click="aiPanelOpen = !aiPanelOpen"
+            @click="versionsOpen = !versionsOpen"
             :class="[
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-              aiPanelOpen ? 'btn-ai' : 'btn-secondary',
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all',
+              versionsOpen ? 'btn-secondary' : 'btn-ghost',
             ]"
           >
-            <span>✨</span>
-            AI
+            🕐 History
+          </button>
+
+          <button
+            v-if="pagesStore.currentPage"
+            @click="aiPanelOpen = !aiPanelOpen"
+            :class="[
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all',
+              aiPanelOpen ? 'btn-ai' : 'btn-ghost',
+            ]"
+          >
+            ✨ AI
           </button>
         </div>
       </header>
 
       <div class="flex flex-1 min-h-0">
         <main class="flex-1 overflow-y-auto">
-          <RouterView />
+          <RouterView @presence="onPresence" />
         </main>
+
+        <VersionsSidebar
+          v-if="versionsOpen && pagesStore.currentPage"
+          :page-id="pagesStore.currentPage.id"
+          @close="versionsOpen = false"
+          @restored="versionsOpen = false"
+        />
 
         <AISidebar
           v-if="aiPanelOpen && pagesStore.currentPage"
@@ -181,26 +234,74 @@
         />
       </div>
     </div>
+
+    <SearchModal v-if="searchOpen" @close="searchOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { RouterView, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth.store";
 import { usePagesStore } from "@/stores/pages.store";
 import { useTheme } from "@/composables/useTheme";
+import { useSocket, type PresenceUser } from "@/composables/useSocket";
 import PageTree from "@/components/sidebar/PageTree.vue";
 import AISidebar from "@/components/ai/AISidebar.vue";
+import SearchModal from "@/components/search/SearchModal.vue";
+import VersionsSidebar from "@/components/versions/VersionsSidebar.vue";
+import PresenceBar from "@/components/presence/PresenceBar.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
 const pagesStore = usePagesStore();
 const { theme, toggle: themeToggle } = useTheme();
+
 const sidebarOpen = ref(true);
 const aiPanelOpen = ref(false);
+const versionsOpen = ref(false);
+const searchOpen = ref(false);
+const presenceUsers = ref<PresenceUser[]>([]);
 
-onMounted(() => pagesStore.fetchPages());
+const { connected, onUserJoined, onUserLeft, onPresenceList } = useSocket();
+
+onUserJoined((user) => {
+  presenceUsers.value = [
+    ...presenceUsers.value.filter((u) => u.socketId !== user.socketId),
+    user,
+  ];
+});
+onUserLeft(({ socketId }) => {
+  presenceUsers.value = presenceUsers.value.filter(
+    (u) => u.socketId !== socketId,
+  );
+});
+onPresenceList((users) => {
+  presenceUsers.value = users;
+});
+
+function onPresence(users: PresenceUser[]) {
+  presenceUsers.value = users;
+}
+
+onMounted(() => {
+  pagesStore.fetchPages();
+  window.addEventListener("keydown", onKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKeydown);
+});
+
+function onKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+    e.preventDefault();
+    searchOpen.value = !searchOpen.value;
+  }
+  if (e.key === "Escape") {
+    searchOpen.value = false;
+  }
+}
 
 async function createNewPage() {
   const page = await pagesStore.createPage();
