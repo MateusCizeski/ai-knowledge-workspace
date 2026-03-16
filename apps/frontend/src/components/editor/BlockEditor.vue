@@ -17,6 +17,19 @@
       @mouseleave="hoveredIndex = null"
     >
       <div
+        v-if="getRemoteCursorOnBlock(block.id)"
+        class="absolute -left-1 top-0 bottom-0 w-0.5 rounded-full z-10 pointer-events-none"
+        :style="{ background: getRemoteCursorOnBlock(block.id)!.color }"
+      >
+        <div
+          class="absolute -top-5 left-1 text-xs font-medium px-1.5 py-0.5 rounded-md text-white whitespace-nowrap"
+          :style="{ background: getRemoteCursorOnBlock(block.id)!.color }"
+        >
+          {{ getRemoteCursorOnBlock(block.id)!.name }}
+        </div>
+      </div>
+
+      <div
         :class="[
           'absolute flex items-center gap-0.5 transition-opacity',
           hoveredIndex === index ? 'opacity-100' : 'opacity-0',
@@ -24,7 +37,7 @@
         style="left: -52px; top: 50%; transform: translateY(-50%)"
       >
         <div
-          class="cursor-grab active:cursor-grabbing p-1 rounded transition-colors"
+          class="cursor-grab active:cursor-grabbing p-1 rounded"
           style="color: var(--text-tertiary)"
           onmouseover="this.style.background = 'var(--bg-tertiary)'"
           onmouseout="this.style.background = ''"
@@ -82,9 +95,9 @@
       </div>
 
       <div v-if="aiLoadingIndex === index" class="py-3 space-y-2">
-        <div class="ai-loading h-3 w-full"></div>
-        <div class="ai-loading h-3 w-5/6"></div>
-        <div class="ai-loading h-3 w-3/4"></div>
+        <div class="ai-loading h-3 w-full rounded"></div>
+        <div class="ai-loading h-3 w-5/6 rounded"></div>
+        <div class="ai-loading h-3 w-3/4 rounded"></div>
       </div>
 
       <component
@@ -94,7 +107,7 @@
         :is-focused="focusedIndex === index"
         :number="getNumberedIndex(index)"
         @update="updateBlock(index, $event)"
-        @focus="focusedIndex = index"
+        @focus="onBlockFocus(index, block.id)"
         @blur="focusedIndex = null"
         @enter="splitBlock(index, $event)"
         @backspace-empty="deleteBlock(index, true)"
@@ -109,19 +122,19 @@
       style="color: var(--text-placeholder)"
       @click="addBlockAtEnd"
     >
-      Click to add a block · Type
+      Click to add ·
       <kbd
         class="px-1 py-0.5 rounded text-xs"
         style="background: var(--bg-tertiary); border: 1px solid var(--border)"
         >/</kbd
       >
-      for blocks ·
+      blocks ·
       <kbd
         class="px-1 py-0.5 rounded text-xs"
         style="background: var(--bg-tertiary); border: 1px solid var(--border)"
         >✨</kbd
       >
-      for AI
+      AI
     </div>
   </div>
 </template>
@@ -142,7 +155,20 @@ import QuoteBlock from "./blocks/QuoteBlock.vue";
 import CalloutBlock from "./blocks/CalloutBlock.vue";
 import ImageBlock from "./blocks/ImageBlock.vue";
 
-const props = defineProps<{ blocks: Block[]; pageId: string }>();
+const props = defineProps<{
+  blocks: Block[];
+  pageId: string;
+  remoteCursors?: Record<
+    string,
+    { name: string; color: string; blockId: string | null }
+  >;
+}>();
+
+const emit = defineEmits<{
+  "blocks-saved": [blocks: Block[]];
+  "cursor-change": [blockId: string | null];
+}>();
+
 const pagesStore = usePagesStore();
 const ai = useAI();
 
@@ -191,6 +217,14 @@ function getNumberedIndex(blockIndex: number): number {
   return count;
 }
 
+function getRemoteCursorOnBlock(blockId: string) {
+  if (!props.remoteCursors) return null;
+  const entry = Object.values(props.remoteCursors).find(
+    (c) => c.blockId === blockId,
+  );
+  return entry || null;
+}
+
 function updateBlock(index: number, content: Record<string, any>) {
   localBlocks.value[index] = { ...localBlocks.value[index], content };
   debouncedSave();
@@ -198,8 +232,9 @@ function updateBlock(index: number, content: Record<string, any>) {
 
 function debouncedSave() {
   if (saveTimeout) clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
-    pagesStore.saveBlocks(props.pageId, localBlocks.value);
+  saveTimeout = setTimeout(async () => {
+    await pagesStore.saveBlocks(props.pageId, localBlocks.value);
+    emit("blocks-saved", localBlocks.value);
   }, 800);
 }
 
@@ -235,11 +270,11 @@ async function splitBlock(index: number, textAfterCursor: string) {
     text: currentText.slice(0, currentText.length - textAfterCursor.length),
   };
   localBlocks.value[index] = before;
+
+  const sameType = ["BULLET", "NUMBERED", "CHECKLIST"].includes(before.type);
   const newBlock: Block = {
     id: `temp-${Date.now()}`,
-    type: ["BULLET", "NUMBERED", "CHECKLIST"].includes(before.type)
-      ? before.type
-      : "TEXT",
+    type: sameType ? before.type : "TEXT",
     content:
       before.type === "CHECKLIST"
         ? { text: textAfterCursor, checked: false }
@@ -290,9 +325,15 @@ async function changeBlockType(index: number, type: string) {
 function addBlockAtEnd() {
   addBlockAfter(localBlocks.value.length - 1);
 }
+
 function focusBlock(index: number) {
   if (index >= 0 && index < localBlocks.value.length)
     focusedIndex.value = index;
+}
+
+function onBlockFocus(index: number, blockId: string) {
+  focusedIndex.value = index;
+  emit("cursor-change", blockId.startsWith("temp-") ? null : blockId);
 }
 
 function onDragStart(index: number, e: DragEvent) {
@@ -350,10 +391,12 @@ async function handleAIGenerate(prompt: string) {
     for (let i = 0; i < lines.length; i++) {
       await addBlockAfter(idx + i, "TEXT");
       const newIdx = idx + i + 1;
-      localBlocks.value[newIdx] = {
-        ...localBlocks.value[newIdx],
-        content: { text: lines[i] },
-      };
+      if (newIdx < localBlocks.value.length) {
+        localBlocks.value[newIdx] = {
+          ...localBlocks.value[newIdx],
+          content: { text: lines[i] },
+        };
+      }
     }
     debouncedSave();
   }

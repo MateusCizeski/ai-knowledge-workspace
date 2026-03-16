@@ -1,5 +1,4 @@
 import { Router, Response, NextFunction } from "express";
-import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { AppError } from "../../middleware/error.middleware";
 import { authenticate, AuthRequest } from "../../middleware/auth.middleware";
@@ -17,7 +16,6 @@ versionsRoutes.get(
       const page = await prisma.page.findFirst({
         where: { id: pageId, authorId: req.userId! },
       });
-
       if (!page) throw new AppError("Page not found", 404);
 
       const versions = await prisma.version.findMany({
@@ -38,7 +36,6 @@ versionsRoutes.get(
             ["TEXT", "HEADING_1", "HEADING_2"].includes(b.type) &&
             b.content?.text,
         );
-
         return {
           id: v.id,
           createdAt: v.createdAt,
@@ -63,13 +60,11 @@ versionsRoutes.post(
       const page = await prisma.page.findFirst({
         where: { id: pageId, authorId: req.userId! },
       });
-
       if (!page) throw new AppError("Page not found", 404);
 
       const version = await prisma.version.findFirst({
         where: { id: versionId, pageId },
       });
-
       if (!version) throw new AppError("Version not found", 404);
 
       const snapshotBlocks = version.snapshot as {
@@ -83,7 +78,6 @@ versionsRoutes.post(
         where: { pageId },
         orderBy: { order: "asc" },
       });
-
       await prisma.version.create({
         data: { pageId, snapshot: currentBlocks },
       });
@@ -123,7 +117,6 @@ versionsRoutes.delete(
       const page = await prisma.page.findFirst({
         where: { id: pageId, authorId: req.userId! },
       });
-
       if (!page) throw new AppError("Page not found", 404);
 
       const versions = await prisma.version.findMany({
@@ -133,10 +126,14 @@ versionsRoutes.delete(
       });
 
       const toDelete = versions.slice(20).map((v) => v.id);
-
       if (toDelete.length > 0) {
         await prisma.version.deleteMany({ where: { id: { in: toDelete } } });
       }
+
+      res.json({
+        deleted: toDelete.length,
+        kept: Math.min(versions.length, 20),
+      });
     } catch (err) {
       next(err);
     }

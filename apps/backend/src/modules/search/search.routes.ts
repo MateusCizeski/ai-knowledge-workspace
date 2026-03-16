@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, AuthRequest } from "../../middleware/auth.middleware";
+import { BlockType } from "@prisma/client";
 
 export const searchRoutes = Router();
 searchRoutes.use(authenticate);
@@ -20,6 +21,17 @@ searchRoutes.get(
       const take = Math.min(parseInt(limit), 50);
       const userId = req.userId!;
       const query = q.trim().toLowerCase();
+
+      const textBlockTypes: BlockType[] = [
+        BlockType.TEXT,
+        BlockType.HEADING_1,
+        BlockType.HEADING_2,
+        BlockType.HEADING_3,
+        BlockType.QUOTE,
+        BlockType.CALLOUT,
+        BlockType.BULLET,
+        BlockType.NUMBERED,
+      ];
 
       const pagesByTitle = await prisma.page.findMany({
         where: {
@@ -40,23 +52,9 @@ searchRoutes.get(
       const blockMatches = await prisma.block.findMany({
         where: {
           page: { authorId: userId },
-          type: {
-            in: [
-              "TEXT",
-              "HEADING_1",
-              "HEADING_2",
-              "HEADING_3",
-              "QUOTE",
-              "CALLOUT",
-              "BULLET",
-              "NUMBERED",
-            ],
-          },
+          type: { in: textBlockTypes },
         },
-        select: {
-          id: true,
-          type: true,
-          content: true,
+        include: {
           page: {
             select: { id: true, title: true, icon: true, updatedAt: true },
           },
@@ -84,7 +82,10 @@ searchRoutes.get(
 
       for (const p of pagesByTitle) {
         pageMap.set(p.id, {
-          ...p,
+          id: p.id,
+          title: p.title,
+          icon: p.icon || "📄",
+          updatedAt: p.updatedAt,
           tags: p.tags.map((t) => t.tag),
           matches: [],
         });
@@ -106,7 +107,6 @@ searchRoutes.get(
         }
 
         const entry = pageMap.get(b.page.id)!;
-
         if (entry.matches.length < 2) {
           entry.matches.push({ blockId: b.id, type: b.type, excerpt });
         }
@@ -126,10 +126,11 @@ searchRoutes.get(
 function buildExcerpt(text: string, query: string, contextChars = 80): string {
   const idx = text.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return text.slice(0, contextChars * 2);
-
   const start = Math.max(0, idx - contextChars);
   const end = Math.min(text.length, idx + query.length + contextChars);
-  const excerpt = text.slice(start, end);
-
-  return (start > 0 ? "…" : "") + excerpt + (end < text.length ? "…" : "");
+  return (
+    (start > 0 ? "…" : "") +
+    text.slice(start, end) +
+    (end < text.length ? "…" : "")
+  );
 }
