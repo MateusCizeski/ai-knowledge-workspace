@@ -40,39 +40,60 @@ function getUsersInPage(pageId: string): ConnectedUser[] {
 export function initWebSocket(httpServer: HTTPServer) {
   const io = new SocketServer(httpServer, {
     cors: {
-      origin: process.env.FRONTEND_URL || "http://localhost:5173",
+      origin: "*",
       methods: ["GET", "POST"],
-      credentials: true,
+      credentials: false,
     },
     transports: ["websocket", "polling"],
+    allowEIO3: true,
   });
 
-  io.use(async (Socket, next) => {
+  io.use(async (socket, next) => {
     try {
-      const token = Socket.handshake.auth.token;
+      const token =
+        socket.handshake.auth?.token ||
+        socket.handshake.headers?.authorization?.replace("Bearer ", "");
 
-      if (!token) return next(new Error("No token"));
+      console.log(
+        `[WS] Auth attempt - token: ${token ? token.slice(0, 20) + "..." : "MISSING"}`,
+      );
 
-      const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
-        userId: string;
-      };
+      if (!token) {
+        console.log("[WS] Auth failed: no token provided");
+        return next(new Error("No token"));
+      }
+
+      const jwtSecret = process.env.JWT_SECRET;
+      if (!jwtSecret) {
+        console.error("[WS] JWT_SECRET not set in environment!");
+        return next(new Error("Server configuration error"));
+      }
+
+      const payload = jwt.verify(token, jwtSecret) as { userId: string };
+      console.log(`[WS] Token valid for userId: ${payload.userId}`);
 
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },
         select: { id: true, name: true, avatar: true },
       });
 
-      if (!user) return next(new Error("User not found"));
+      if (!user) {
+        console.log(`[WS] User not found: ${payload.userId}`);
+        return next(new Error("User not found"));
+      }
 
-      Socket.data.user = user;
-    } catch {
-      next(new Error("Invalid token"));
+      socket.data.user = user;
+      console.log(`[WS] Auth success: ${user.name}`);
+      next();
+    } catch (err: any) {
+      console.error(`[WS] Auth error: ${err.message}`);
+      next(new Error(`Auth failed: ${err.message}`));
     }
   });
 
   io.on("connection", (socket: Socket) => {
     const user = socket.data.user;
-    console.log(`[WS] Connected: ${user.name} (${socket.id})`);
+    console.log(`[WS] ✅ Connected: ${user.name} (${socket.id})`);
 
     connectedUsers.set(socket.id, {
       userId: user.id,
@@ -83,9 +104,8 @@ export function initWebSocket(httpServer: HTTPServer) {
       color: getColorForUser(user.id),
     });
 
-    socket.on("join-page", async (pageId, string) => {
+    socket.on("join-page", async (pageId: string) => {
       const current = connectedUsers.get(socket.id);
-
       if (current?.pageId) {
         socket.leave(`page:${current.pageId}`);
         socket.to(`page:${current.pageId}`).emit("user-left", {
@@ -109,20 +129,16 @@ export function initWebSocket(httpServer: HTTPServer) {
         "presence-list",
         getUsersInPage(pageId).filter((u) => u.socketId !== socket.id),
       );
-
       console.log(`[WS] ${user.name} joined page:${pageId}`);
     });
 
     socket.on("leave-page", (pageId: string) => {
       socket.leave(`page:${pageId}`);
       const current = connectedUsers.get(socket.id);
-
       if (current) connectedUsers.set(socket.id, { ...current, pageId: null });
-
-      socket.to(`page:${pageId}`).emit("user-left", {
-        socketId: socket.id,
-        userId: user.id,
-      });
+      socket
+        .to(`page:${pageId}`)
+        .emit("user-left", { socketId: socket.id, userId: user.id });
     });
 
     socket.on("blocks-changed", (data: { pageId: string; blocks: any[] }) => {
@@ -161,9 +177,8 @@ export function initWebSocket(httpServer: HTTPServer) {
       },
     );
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
       const current = connectedUsers.get(socket.id);
-
       if (current?.pageId) {
         socket.to(`page:${current.pageId}`).emit("user-left", {
           socketId: socket.id,
@@ -171,7 +186,7 @@ export function initWebSocket(httpServer: HTTPServer) {
         });
       }
       connectedUsers.delete(socket.id);
-      console.log(`[WS] Disconnected: ${user.name}`);
+      console.log(`[WS] Disconnected: ${user.name} — reason: ${reason}`);
     });
   });
 

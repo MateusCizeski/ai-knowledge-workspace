@@ -20,10 +20,7 @@ function getSocket(): Socket {
 
   const auth = useAuthStore();
 
-  const url =
-    import.meta.env.PROD && import.meta.env.VITE_WS_URL
-      ? import.meta.env.VITE_WS_URL
-      : undefined;
+  const url = import.meta.env.VITE_WS_URL || "http://localhost:3000";
 
   socket = io(url!, {
     auth: { token: auth.token },
