@@ -13,44 +13,64 @@
         class="h-4 rounded-lg w-4/5"
         style="background: var(--bg-tertiary)"
       ></div>
-      <div
-        class="h-4 rounded-lg w-3/5"
-        style="background: var(--bg-tertiary)"
-      ></div>
     </div>
 
     <template v-else-if="pagesStore.currentPage">
+      <div class="flex items-center justify-end gap-2 mb-6 -mt-4">
+        <button
+          @click="handleExport"
+          :class="[
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+            exportSuccess ? 'btn-primary' : 'btn-ghost',
+          ]"
+        >
+          <span>{{ exportSuccess ? "✓" : "⬇️" }}</span>
+          {{ exportSuccess ? "Downloaded!" : "Export .md" }}
+        </button>
+      </div>
+
       <div class="mb-8">
         <div class="relative inline-block mb-4">
           <button
             @click="showIconPicker = !showIconPicker"
-            class="text-5xl cursor-pointer select-none hover:scale-110 transition-transform block"
+            class="text-5xl cursor-pointer select-none transition-transform block"
+            style="transform-origin: left center"
+            onmouseover="this.style.transform = 'scale(1.1)'"
+            onmouseout="this.style.transform = 'scale(1)'"
           >
             {{ pagesStore.currentPage.icon || "📄" }}
           </button>
 
-          <div
-            v-if="showIconPicker"
-            class="absolute top-full left-0 mt-2 z-40 p-2 rounded-xl animate-fadeIn"
-            style="
-              background: var(--bg);
-              border: 1px solid var(--border);
-              box-shadow: var(--shadow-lg);
-            "
-          >
-            <div class="flex flex-wrap gap-1" style="max-width: 220px">
-              <button
-                v-for="emoji in commonIcons"
-                :key="emoji"
-                @click="setIcon(emoji)"
-                class="text-xl p-1.5 rounded-lg hover:scale-110 transition-all"
-                onmouseover="this.style.background = 'var(--bg-tertiary)'"
-                onmouseout="this.style.background = ''"
-              >
-                {{ emoji }}
-              </button>
+          <Transition name="fade-down">
+            <div
+              v-if="showIconPicker"
+              class="absolute top-full left-0 mt-2 z-40 p-2 rounded-xl"
+              style="
+                background: var(--bg);
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow-lg);
+              "
+            >
+              <div class="flex flex-wrap gap-1" style="max-width: 220px">
+                <button
+                  v-for="emoji in commonIcons"
+                  :key="emoji"
+                  @click="setIcon(emoji)"
+                  class="text-xl p-1.5 rounded-lg transition-all"
+                  onmouseover="
+                    this.style.background = 'var(--bg-tertiary)';
+                    this.style.transform = 'scale(1.15)';
+                  "
+                  onmouseout="
+                    this.style.background = '';
+                    this.style.transform = 'scale(1)';
+                  "
+                >
+                  {{ emoji }}
+                </button>
+              </div>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <input
@@ -60,7 +80,7 @@
           @input="debouncedTitleBroadcast"
           @keydown.enter.prevent="titleInput?.blur()"
           placeholder="Untitled"
-          class="w-full text-4xl font-bold border-none outline-none bg-transparent resize-none leading-tight"
+          class="w-full text-4xl font-bold border-none outline-none bg-transparent resize-none leading-tight mb-1"
           style="color: var(--text-primary); caret-color: var(--accent)"
         />
 
@@ -71,7 +91,7 @@
           <span
             v-for="tag in pagesStore.currentPage.tags"
             :key="tag.id"
-            class="text-xs px-2.5 py-0.5 rounded-full font-medium"
+            class="text-xs px-2.5 py-0.5 rounded-full font-medium transition-transform hover:scale-105"
             :style="{ background: tag.color + '20', color: tag.color }"
           >
             {{ tag.name }}
@@ -88,20 +108,60 @@
         @blocks-saved="onBlocksSaved"
         @cursor-change="onCursorChange"
       />
+
+      <Transition name="fade">
+        <div
+          v-if="
+            pagesStore.currentPage.blocks.length === 1 &&
+            !pagesStore.currentPage.blocks[0].content.text
+          "
+          class="mt-8 text-center py-12 rounded-2xl"
+          style="border: 2px dashed var(--border)"
+        >
+          <p class="text-2xl mb-2">✏️</p>
+          <p class="text-sm font-medium" style="color: var(--text-secondary)">
+            Start writing…
+          </p>
+          <p class="text-xs mt-1" style="color: var(--text-tertiary)">
+            Type
+            <kbd
+              class="px-1.5 py-0.5 rounded"
+              style="
+                background: var(--bg-tertiary);
+                border: 1px solid var(--border);
+              "
+              >/</kbd
+            >
+            for blocks or
+            <kbd
+              class="px-1.5 py-0.5 rounded"
+              style="
+                background: var(--bg-tertiary);
+                border: 1px solid var(--border);
+              "
+              >✨</kbd
+            >
+            to use AI
+          </p>
+        </div>
+      </Transition>
     </template>
 
-    <div v-else class="text-center mt-20" style="color: var(--text-tertiary)">
-      <span class="text-4xl block mb-3">🔍</span>
-      Page not found
+    <div v-else class="text-center mt-20">
+      <span class="text-5xl block mb-4">🔍</span>
+      <p class="text-lg font-medium" style="color: var(--text-secondary)">
+        Page not found
+      </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
 import { usePagesStore } from "@/stores/pages.store";
 import { useSocket } from "@/composables/useSocket";
+import { useMarkdownExport } from "@/composables/useMarkdownExport";
 import BlockEditor from "@/components/editor/BlockEditor.vue";
 
 const route = useRoute();
@@ -116,10 +176,12 @@ const {
   onCursorUpdate,
   onPageTitleUpdated,
 } = useSocket();
+const { exportPage } = useMarkdownExport();
 
 const title = ref("");
 const showIconPicker = ref(false);
 const titleInput = ref<HTMLInputElement | null>(null);
+const exportSuccess = ref(false);
 const remoteCursors = ref<
   Record<string, { name: string; color: string; blockId: string | null }>
 >({});
@@ -150,7 +212,7 @@ const commonIcons = [
   "🎭",
 ];
 
-onBlocksUpdated(({ blocks, by }) => {
+onBlocksUpdated(({ blocks }) => {
   if (pagesStore.currentPage) {
     pagesStore.currentPage = { ...pagesStore.currentPage, blocks };
   }
@@ -176,7 +238,6 @@ onPageTitleUpdated(({ pageId, title: newTitle, icon }) => {
       icon,
     };
   }
-
   const idx = pagesStore.pages.findIndex((p) => p.id === pageId);
   if (idx !== -1)
     pagesStore.pages[idx] = { ...pagesStore.pages[idx], title: newTitle, icon };
@@ -239,14 +300,49 @@ async function setIcon(emoji: string) {
 }
 
 function onBlocksSaved(blocks: any[]) {
-  if (pagesStore.currentPage) {
+  if (pagesStore.currentPage)
     emitBlocksChanged(pagesStore.currentPage.id, blocks);
-  }
 }
 
 function onCursorChange(blockId: string | null) {
-  if (pagesStore.currentPage) {
+  if (pagesStore.currentPage)
     emitCursorMove(pagesStore.currentPage.id, blockId);
-  }
+}
+
+function handleExport() {
+  if (!pagesStore.currentPage) return;
+  exportPage(
+    pagesStore.currentPage.blocks,
+    pagesStore.currentPage.title || "Untitled",
+    pagesStore.currentPage.icon,
+  );
+  exportSuccess.value = true;
+  setTimeout(() => (exportSuccess.value = false), 2500);
 }
 </script>
+
+<style scoped>
+.fade-down-enter-active,
+.fade-down-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+.fade-down-enter-from {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.fade-down-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
