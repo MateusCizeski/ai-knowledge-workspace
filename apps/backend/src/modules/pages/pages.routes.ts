@@ -58,7 +58,12 @@ const ctrl = {
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const data = updateSchema.parse(req.body);
-      const page = await pagesService.update(req.params.id, req.userId!, data);
+
+      const page = await pagesService.update(req.params.id, req.userId!, {
+        ...data,
+        coverImage: data.coverImage ?? undefined,
+      });
+
       res.json(page);
     } catch (err) {
       next(err);
