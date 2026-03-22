@@ -7,16 +7,24 @@ import { BlockType } from "@prisma/client";
 export const searchRoutes = Router();
 searchRoutes.use(authenticate);
 
+const querySchema = z.object({
+  q: z.string().min(1).max(200),
+  limit: z.string().optional(),
+});
+
 searchRoutes.get(
   "/",
   async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { q, limit = "20" } = z
-        .object({
-          q: z.string().min(1).max(200),
-          limit: z.string().optional(),
-        })
-        .parse(req.query);
+      const parsed = querySchema.safeParse(req.query);
+
+      if (!parsed.success) {
+        return res.status(422).json({
+          error: parsed.error.format(),
+        });
+      }
+
+      const { q, limit = "20" } = parsed.data;
 
       const take = Math.min(parseInt(limit), 50);
       const userId = req.userId!;
@@ -107,8 +115,13 @@ searchRoutes.get(
         }
 
         const entry = pageMap.get(b.page.id)!;
+
         if (entry.matches.length < 2) {
-          entry.matches.push({ blockId: b.id, type: b.type, excerpt });
+          entry.matches.push({
+            blockId: b.id,
+            type: b.type,
+            excerpt,
+          });
         }
       }
 
@@ -116,7 +129,11 @@ searchRoutes.get(
         .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
         .slice(0, take);
 
-      res.json({ results, total: results.length, query: q });
+      return res.json({
+        results,
+        total: results.length,
+        query: q,
+      });
     } catch (err) {
       next(err);
     }
@@ -125,9 +142,14 @@ searchRoutes.get(
 
 function buildExcerpt(text: string, query: string, contextChars = 80): string {
   const idx = text.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return text.slice(0, contextChars * 2);
+
+  if (idx === -1) {
+    return text.slice(0, contextChars * 2);
+  }
+
   const start = Math.max(0, idx - contextChars);
   const end = Math.min(text.length, idx + query.length + contextChars);
+
   return (
     (start > 0 ? "…" : "") +
     text.slice(start, end) +

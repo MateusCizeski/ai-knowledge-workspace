@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import supertest from "supertest";
-import { app } from "../server";
+import app from "../app";
 import { prisma } from "../config/prisma";
 
 const request = supertest(app);
@@ -57,7 +57,6 @@ describe("Search Routes", () => {
 
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { email: testUser.email } });
-    await prisma.$disconnect();
   });
 
   it("should return 401 without auth", async () => {
