@@ -8,6 +8,7 @@
   "prisma": {
     "schema": "prisma/schema.prisma"
   },
+  "_comment": "trigger deploy railway",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
